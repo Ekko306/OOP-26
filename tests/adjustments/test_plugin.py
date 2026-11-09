@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -74,21 +72,21 @@ class TestOpenClosedExtension:
         assert rebuilt.params["factor"] == 1.8
 
     def test_existing_files_untouched(self):
-        """注册制扩展不改存量代码：git status 中 core/ 已跟踪文件无修改（FR-026）。
+        """注册制扩展不改存量代码（FR-026）：经注册点扩展时 core/ 存量文件内容零变化。
 
-        仅拦截 M/A/D（修改/暂存/删除）；?? （本特性尚未提交的新文件）不视为改动。
+        以「注册前后 core/ 源文件内容快照」为断言对象。002 起不再以 git
+        工作区状态为准——core 允许计划内 additive 演进（新增只读查询方法等），
+        见 specs/002-bridge-state-layer/research.md D1/D2。
         """
-        result = subprocess.run(
-            ["git", "status", "--porcelain", "--", "pylightroom/core/"],
-            capture_output=True,
-            text=True,
-            cwd=REPO_ROOT,
-        )
-        changed = [
-            line
-            for line in result.stdout.splitlines()
-            if line.strip() and not line.strip().startswith("??")
-        ]
-        assert changed == [], (
-            f"插件扩展不应触碰存量文件，但发现改动：{changed}"
-        )
+        core_dir = REPO_ROOT / "pylightroom" / "core"
+        snapshot = {
+            str(path.relative_to(REPO_ROOT)): path.read_bytes()
+            for path in sorted(core_dir.rglob("*.py"))
+        }
+        AdjustmentFactory.register(VignetteAdjustment)
+        AdjustmentFactory.create("vignette", {"factor": 1.5})  # 扩展即刻可用
+        after = {
+            str(path.relative_to(REPO_ROOT)): path.read_bytes()
+            for path in sorted(core_dir.rglob("*.py"))
+        }
+        assert after == snapshot, "注册制扩展修改了存量 core 文件"

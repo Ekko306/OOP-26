@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
+
 from pylightroom.core.adjustments.base import BaseAdjustment
 from pylightroom.core.errors import AdjustmentError
 
@@ -38,3 +40,17 @@ class AdjustmentFactory:
     @classmethod
     def registered_names(cls) -> list[str]:
         return sorted(cls._registry)
+
+    @classmethod
+    def registered_schemas(cls) -> dict[str, dict]:
+        """全部已注册调整的参数模式深拷贝（只读查询，research D1）。
+
+        返回 {name: {param: {"min","max","default"}}}；几何参数条目可无 min/max。
+        返回副本，外部修改不得影响注册表。
+        """
+        return deepcopy(
+            {
+                name: adjustment_cls.param_schema
+                for name, adjustment_cls in sorted(cls._registry.items())
+            }
+        )

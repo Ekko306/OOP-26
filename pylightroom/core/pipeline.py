@@ -72,6 +72,19 @@ class ImageProcessor:
         return self._session.version
 
     # ------------------------------------------------------------------
+    # 只读查询（桥接层滑块同步所需，research D1；additive，不改 001 契约）
+    # ------------------------------------------------------------------
+    def current_params(self) -> dict[str, dict]:
+        """按调整名汇总当前生效参数：自栈顶向下反向扫描，首次命中者生效。
+
+        同段同类合并取合并值；撤销后随指令栈同步消失；未打开图片返回 {}。
+        """
+        effective: dict[str, dict] = {}
+        for adjustment in reversed(self._session.instructions):
+            effective.setdefault(adjustment.name, dict(adjustment.params))
+        return effective
+
+    # ------------------------------------------------------------------
     # 调整（校验→入栈→低分先行重渲染）
     # ------------------------------------------------------------------
     def update_adjustment(self, name: str, params: dict) -> None:
@@ -129,6 +142,15 @@ class ImageProcessor:
     # ------------------------------------------------------------------
     # 渐进式预览（低分同步先行，高分后台补齐；FR-018/SC-005）
     # ------------------------------------------------------------------
+    def refresh_previews(self) -> None:
+        """渲染并推送当前版本三级预览（桥接层打开图片后调用，US1 渐进推送）。
+
+        thumb 同步先行、medium/full 由后台线程补齐后经回调替换。
+        调整/撤销/重做路径已内置刷新，无需重复调用。
+        """
+        self._require_open()
+        self._refresh_previews()
+
     def _refresh_previews(self) -> None:
         version = self._session.version
         thumb_task = f"preview-thumb-v{version}"
@@ -142,12 +164,15 @@ class ImageProcessor:
         self._bg_thread.start()
 
     def _render_background(self, version: int) -> None:
+        session_at_start = self._session  # 会话身份快照（D9：open 重开使版本归零，需以对象身份区分）
         for index, level in enumerate(("medium", "full")):
-            if self._session.version != version:
+            if self._session is not session_at_start or self._session.version != version:
                 return  # 会话已变更，本次高分渲染过期，丢弃
             task = f"preview-{level}-v{version}"
             try:
                 image = self._render_level(level)
+                if self._session is not session_at_start or self._session.version != version:
+                    return  # 渲染期间会话已切换/推进，在途结果作废（D9）
                 self._cache.put(version, level, image)
                 self._emit_progress(task, "render", (index + 2) / 3)
                 self._emit_complete(task, image)
