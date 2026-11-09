@@ -189,6 +189,41 @@ class TestFullTimeoutDegradation:
         assert state.error_message == ""
 
 
+class TestComputedRows:
+    """003 additive computed vars：histogram_rows 与 schema_rows（纯格式映射）。"""
+
+    def test_histogram_rows_empty_when_no_histogram(self, state):
+        assert state.histogram == {}
+        assert state.schema_rows == []
+        assert state.histogram_rows == []
+
+    def test_histogram_rows_shape(self, state):
+        state.histogram = {"r": [1, 2], "g": [3], "b": []}
+        rows = state.histogram_rows
+        assert len(rows) == 2  # 最长通道决定行数，缺席补 0
+        assert rows[0] == {"bin": 0, "r": 1, "g": 3, "b": 0}
+        assert rows[1] == {"bin": 1, "r": 2, "g": 0, "b": 0}
+
+    def test_schema_rows_from_registered_schemas(self, state):
+        """真实注册表 → 滑块行/角度行，crop（box 形态）不生成行（FR-005）。"""
+        from pylightroom.core import AdjustmentFactory
+
+        state.adjustment_schemas = AdjustmentFactory.registered_schemas()
+        rows = state.schema_rows
+        by_name = {row["name"]: row for row in rows}
+        assert by_name["brightness"]["kind"] == "slider"
+        assert by_name["brightness"]["min"] == 0.0 and by_name["brightness"]["max"] == 2.0
+        assert by_name["brightness"]["default"] == 1.0
+        assert by_name["rotate"]["kind"] == "angle"
+        assert by_name["rotate"]["default"] == 0.0
+        assert "crop" not in by_name, "box 形态调整不应生成面板行"
+        assert rows == sorted(rows, key=lambda row: row["name"])  # 字母序
+
+    def test_empty_schemas(self, state):
+        state.adjustment_schemas = {}
+        assert state.schema_rows == []
+
+
 class TestUndoRedo:
     def test_undo_reverts_values_and_preview(self, state, opened_session):
         """撤销后：参数值与预览随引擎指令栈回退（FR-008）。"""

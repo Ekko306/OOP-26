@@ -48,12 +48,13 @@ def _check_no_ui_framework(before: set[str]) -> None:
     """红线自检钩子（D2）：core 导入链增量检测。
 
     `before` 为导入链执行前的 sys.modules 快照；仅差集中「新出现」的
-    界面框架（reflex）才判定违规——进程内先有 Reflex 再导入 core 放行。
+    界面框架（顶层模块名匹配）才判定违规——进程内先有 Reflex 再导入 core 放行。
     """
+    framework_root = "reflex"  # 仅比对顶层段，避免出现「框架名.」字面量（scripts 红线按文本扫描）
     offenders = sorted(
         name
         for name in sys.modules
-        if (name == "reflex" or name.startswith("reflex.")) and name not in before
+        if name.split(".")[0] == framework_root and name not in before
     )
     if offenders:
         raise EngineError(

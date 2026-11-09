@@ -1,3 +1,8 @@
+*.py[cod]
+*.db
+.states
+assets/external/
+.web
 # IDE
 .idea/
 .vscode/
@@ -17,3 +22,8 @@ dist/
 
 # pytest
 .pytest_cache/
+
+# Reflex / PyLightroom runtime
+output/
+uploaded_files/
+.web/

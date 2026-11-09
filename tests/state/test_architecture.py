@@ -42,14 +42,17 @@ def test_core_never_imports_ui_framework():
 
 
 def test_reflex_confined_to_state_layer():
-    """SC-007：reflex 仅可被 state/ 引用（桥接层是唯一例外）。"""
-    state_dir = PYLIGHTROOM / "state"
+    """SC-007：reflex 仅可被 state/ 与 ui/ 引用（002 起桥接层、003 起表现层）。
+
+    003-ui-presentation-layer 起 ui/ 为 Reflex 的第二个合法层（contracts/ui-api.md §5），
+    其内部细则（components 零 state、页面唯一绑定等）由 tests/ui/test_architecture.py 守卫。"""
+    allowed = (PYLIGHTROOM / "state", PYLIGHTROOM / "ui")
     offenders = [
         str(path)
         for path in sorted(PYLIGHTROOM.rglob("*.py"))
-        if _imported_roots(path) & UI_FRAMEWORKS and state_dir not in path.parents
+        if _imported_roots(path) & UI_FRAMEWORKS and not any(allowed_dir in path.parents for allowed_dir in allowed)
     ]
-    assert offenders == [], f"state/ 之外出现 reflex 导入: {offenders}"
+    assert offenders == [], f"state/、ui/ 之外出现 reflex 导入: {offenders}"
 
 
 def test_state_has_no_heavy_image_libs():

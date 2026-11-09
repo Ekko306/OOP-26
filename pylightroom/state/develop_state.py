@@ -37,6 +37,64 @@ class DevelopState(rx.State):
         result = HistogramCalculator.compute(get_session().processor.render("thumb"))
         self.histogram = {channel: list(bins) for channel, bins in result.items()}
 
+    @rx.var
+    def histogram_rows(self) -> list[dict]:
+        """直方图的图表行形式（003 D5 变体：dict→rows 映射在桥接层完成）。
+
+        003 实现期发现：前端手写 JS 表达式绕过 Reflex 的 state 声明机制
+        （useStateContext），页面运行时 ReferenceError——按 003 contracts §6
+        additive 通道将纯格式映射移入桥接层（零业务规则）。空直方图 → 空行集。
+        """
+        if not self.histogram:
+            return []
+        r = self.histogram.get("r", [])
+        g = self.histogram.get("g", [])
+        b = self.histogram.get("b", [])
+        total = max(len(r), len(g), len(b), 0)
+        return [
+            {
+                "bin": index,
+                "r": r[index] if index < len(r) else 0,
+                "g": g[index] if index < len(g) else 0,
+                "b": b[index] if index < len(b) else 0,
+            }
+            for index in range(total)
+        ]
+
+    @rx.var
+    def schema_rows(self) -> list[dict]:
+        """调整面板行（003 实现修正：前端 dict 迭代不可靠，展平为 list[dict]）。
+
+        纯格式映射：factor 形态 → 滑块行；angle 形态 → 角度输入行；
+        其余形态（如 crop 的 box）不生成行（FR-005 本期不渲染该类入口）。
+        顺序 = 字母序（registered_schemas 注入序）。
+        """
+        rows: list[dict] = []
+        for name, schema in (self.adjustment_schemas or {}).items():
+            if "factor" in schema:
+                spec = schema["factor"]
+                rows.append(
+                    {
+                        "name": name,
+                        "kind": "slider",
+                        "min": float(spec.get("min", 0.0)),
+                        "max": float(spec.get("max", 2.0)),
+                        "default": float(spec.get("default", 1.0)),
+                    }
+                )
+            elif "angle" in schema:
+                spec = schema["angle"]
+                rows.append(
+                    {
+                        "name": name,
+                        "kind": "angle",
+                        "min": -360.0,
+                        "max": 360.0,
+                        "default": float(spec.get("default", 0.0)),
+                    }
+                )
+        return rows
+
     def _refresh_adjustment_values(self) -> None:
         """adjustment_values ← current_params；缺席名回补 schema 默认值（US3 一致性）。
 
