@@ -14,3 +14,6 @@ __pycache__/
 # Build
 build/
 dist/
+
+# pytest
+.pytest_cache/

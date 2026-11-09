@@ -1,0 +1,5 @@
+pillow==13.0.0
+opencv-python==5.0.0.93
+rawpy==0.28.0
+numpy==2.4.6
+pytest==9.2.0

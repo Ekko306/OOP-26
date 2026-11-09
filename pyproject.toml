@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# 仓库根加入 sys.path：`uv run pytest tests/ -v` 可直接运行（quickstart §3）
+pythonpath = ["."]
+# UTF-8 输出：Windows 控制台经 PYTHONUTF8=1 保证（见 quickstart §3）
+addopts = "-q"
